@@ -87,6 +87,8 @@ MajorTarot은 사용자가 선택한 질문과 뽑은 카드 조합을 바탕으
 ---
 
 ## 📁 프로젝트 구조
+
+```
 MajorTarot/
 ├── tarot-app/ # Frontend (Next.js)
 │ ├── src/
@@ -101,8 +103,9 @@ MajorTarot/
 ├── tarot_engine.py # 해석 로직
 ├── tarot_pipeline.py # 데이터 처리
 ├── tarot.db # SQLite DB
-└── category_mapping.py
-
+├── major_tarot.csv #데이터
+└── category_mapping.py #질문에 따른 카드 답 연결
+```
 ---
 
 ## 📱 사용 방법
