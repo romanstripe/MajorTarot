@@ -3,8 +3,9 @@
 
 > **Major Arcana + AI = MajorTarot**  
 > 카드의 흐름을 기반으로 직관적인 해석을 제공하는 AI 타로 상담 서비스
+> 
 
-[![Live Demo](https://img.shields.io/badge/🌐_Live_Demo-major-tarot.vercel.app-60A5FA?style=for-the-badge&logo=vercel)]([[https://major-tarot.vercel.app/](https://major-tarot-tk3l.vercel.app/)](https://major-tarot-tk3l.vercel.app/))
+[![Live Demo](https://img.shields.io/badge/🔮_Live_Demo-major--tarot.vercel.app-8B5CF6?style=for-the-badge&logo=vercel)](https://major-tarot-tk3l.vercel.app/)
 
 </div>
 
