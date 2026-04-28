@@ -358,26 +358,16 @@ class TarotAPIHandler(BaseHTTPRequestHandler):
     def log_message(self, fmt, *args):
         print(f"[API] {self.address_string()} {fmt % args}")
 
+def run(port=None):
+    port = int(os.environ.get("PORT", port or 8001))
 
-def run(port=8001):
     if not Path(DB_PATH).exists():
         print(f"❌ {DB_PATH} 없음 — 먼저 tarot_pipeline.py 실행하세요")
         return
 
-    httpd = HTTPServer(("", port), TarotAPIHandler)
-    print(f"🔮 타로 API 서버: http://localhost:{port}")
-    print("엔드포인트:")
-    print("  GET  /data/categories.json")
-    print("  GET  /data/questions?group={love|money|daily|future|meeting|mind}")
-    print("  GET  /data/reading?category={질문}&card={카드명}&direction={정방향|역방향}")
-    print("  POST /gemini/reading  ← Gemini 통합 풀이")
-    print("Ctrl+C 로 종료\n")
-    try:
-        httpd.serve_forever()
-    except KeyboardInterrupt:
-        print("\n🛑 서버 종료")
-        httpd.server_close()
-
+    httpd = HTTPServer(("0.0.0.0", port), TarotAPIHandler)
+    print(f"🔮 타로 API 서버: http://0.0.0.0:{port}")
+    httpd.serve_forever()
 
 if __name__ == "__main__":
     run()
