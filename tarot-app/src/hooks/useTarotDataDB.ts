@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback } from "react";
 import { Category, Question } from "../types/tarot";
 
 const API_BASE_URL =
-  process.env.NEXT_PUBLIC_API_BASE_URL || "http://localhost:8001";
+  process.env.REACT_APP_API_BASE_URL || "http://localhost:8001";
 
 export interface TarotReading {
   card_type: string;
@@ -39,7 +39,7 @@ export const useTarotDataDB = () => {
   useEffect(() => {
     const loadCategories = async () => {
       try {
-        const res = await fetch(`${API}/data/categories.json`);
+        const res = await fetch(`${API_BASE_URL}/data/categories.json`);
         if (!res.ok) throw new Error("카테고리 로드 실패");
 
         const data: {
@@ -75,7 +75,9 @@ export const useTarotDataDB = () => {
   const getQuestionsByCategory = useCallback(
     async (groupId: string): Promise<Question[]> => {
       try {
-        const res = await fetch(`${API}/data/questions?group=${groupId}`);
+        const res = await fetch(
+          `${API_BASE_URL}/data/questions?group=${groupId}`,
+        );
         if (!res.ok) return [];
 
         const data: { id: string; text: string }[] = await res.json();
@@ -114,7 +116,7 @@ export const useTarotDataDB = () => {
           partner: partnerName,
         });
 
-        const res = await fetch(`${API}/data/reading?${params}`);
+        const res = await fetch(`${API_BASE_URL}/data/reading?${params}`);
         if (!res.ok) return null;
 
         return await res.json();
@@ -135,7 +137,7 @@ export const useTarotDataDB = () => {
       try {
         const dirKo = direction === "normal" ? "정방향" : "역방향";
         const res = await fetch(
-          `${API}/data/card_desc?card=${encodeURIComponent(cardName)}&direction=${encodeURIComponent(dirKo)}`,
+          `${API_BASE_URL}/data/card_desc?card=${encodeURIComponent(cardName)}&direction=${encodeURIComponent(dirKo)}`,
         );
         if (!res.ok) return null;
 

@@ -4,7 +4,7 @@ import { TarotCard as TarotCardType } from "../types/tarot";
 import { useTarotDataDB, TarotReading } from "../hooks/useTarotDataDB";
 
 const API_BASE_URL =
-  process.env.NEXT_PUBLIC_API_BASE_URL || "http://localhost:8001";
+  process.env.REACT_APP_API_BASE_URL || "http://localhost:8001";
 
 interface ReadingResultProps {
   category: string;
@@ -48,7 +48,7 @@ export const ReadingResult: React.FC<ReadingResultProps> = ({
         );
 
         // 2. 서버에서 Gemini로 통합 풀이 생성
-        const res = await fetch(`${API}/gemini/reading`, {
+        const res = await fetch(`${API_BASE_URL}/gemini/reading`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
