@@ -20,6 +20,10 @@ from http.server import HTTPServer, BaseHTTPRequestHandler
 from urllib.parse import urlparse, parse_qs, unquote
 from pathlib import Path
 from dotenv import load_dotenv
+import re
+from collections import Counter
+from datetime import datetime
+
 load_dotenv()
 
 OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
@@ -33,6 +37,44 @@ MAJOR_ARCANA = [
     "악마", "탑", "별", "달", "태양",
     "심판", "세계",
 ]
+
+CATEGORY_META = {
+    "new_start": {
+        "name": "새로운 설렘",
+        "description": "썸, 솔로, 새로운 인연",
+    },
+    "love_classic": {
+        "name": "연애와 관계",
+        "description": "커플, 결혼, 관계의 흐름",
+    },
+    "love_again": {
+        "name": "이별과 재회",
+        "description": "미련, 재회, 다시 사랑할 가능성",
+    },
+    "money_success": {
+        "name": "돈과 성공",
+        "description": "재물, 직장, 학업과 성취",
+    },
+    "find_myself": {
+        "name": "나를 찾는 시간",
+        "description": "성격, 심리, 나와 타인의 시선",
+    },
+    "precious_being": {
+        "name": "소중한 존재",
+        "description": "가족, 반려동물, 일상의 운세",
+    },
+}
+
+GENERIC_QUESTION_PARTS = {
+    "건강 상태",
+    "상태나 성격",
+    "재산이나 소유물 등의 상태",
+    "어떻게 하는 것이 좋을까요",
+}
+
+QUESTION_REWRITES = {
+    "짝사랑과 나, 썸 Ż 수 있을까": "짝사랑과 나, 썸 탈 수 있을까",
+}
 
 
 def get_conn():
@@ -50,14 +92,105 @@ def load_all_categories():
     return [r["category"] for r in rows]
 
 
+def get_current_date_parts():
+    now = datetime.now()
+    return {
+        "year": str(now.year),
+        "month": str(now.month),
+    }
+
+
+def replace_date_vars(text: str) -> str:
+    if not text:
+        return text
+
+    parts = get_current_date_parts()
+    return (
+        text
+        .replace("$year", parts["year"])
+        .replace("$month", parts["month"])
+        .replace("year년", f"{parts['year']}년")
+        .replace("month월", f"{parts['month']}월")
+    )
+
+
+def clean_display_text(text: str) -> str:
+    if not text:
+        return ""
+
+    cleaned = replace_date_vars(text.strip())
+    cleaned = QUESTION_REWRITES.get(cleaned, cleaned)
+    cleaned = cleaned.replace("Ż", "탈")
+
+    if "#" in cleaned:
+        parts = [part.strip() for part in cleaned.split("#") if part.strip()]
+        if parts:
+            first = parts[0]
+            cleaned = parts[1] if first in GENERIC_QUESTION_PARTS and len(parts) > 1 else first
+
+    cleaned = re.sub(r"\s+", " ", cleaned)
+    cleaned = re.sub(r"\s+([?!])", r"\1", cleaned)
+    return cleaned.strip()
+
+
+def load_mapped_categories():
+    conn = get_conn()
+    rows = []
+    try:
+        rows = conn.execute("""
+            SELECT category_id, name, description, question_ids
+            FROM categories
+            ORDER BY id
+        """).fetchall()
+    except sqlite3.Error:
+        rows = []
+
+    mapped = []
+    for row in rows:
+        cat_id = row["category_id"]
+        meta = CATEGORY_META.get(cat_id, {})
+        try:
+            question_ids = json.loads(row["question_ids"] or "[]")
+        except json.JSONDecodeError:
+            question_ids = []
+
+        questions = []
+        for question_id in question_ids:
+            question = conn.execute(
+                "SELECT DISTINCT category FROM tarot_content WHERE id = ? LIMIT 1",
+                (question_id,),
+            ).fetchone()
+            if question:
+                raw_text = question["category"]
+                questions.append({
+                    "id": raw_text,
+                    "text": clean_display_text(raw_text),
+                })
+
+        mapped.append({
+            "id": cat_id,
+            "name": meta.get("name", row["name"]),
+            "description": meta.get("description", row["description"] or ""),
+            "icon": "",
+            "questions": questions,
+        })
+
+    conn.close()
+    return mapped
+
+
 def group_categories(all_cats):
+    mapped = load_mapped_categories()
+    if mapped:
+        return mapped
+
     groups = {
-        "love":    {"id": "love",    "name": "연애/이별",   "icon": "💕", "questions": []},
-        "meeting": {"id": "meeting", "name": "만남/인연",   "icon": "🌹", "questions": []},
-        "money":   {"id": "money",   "name": "재물/직업",   "icon": "💰", "questions": []},
-        "future":  {"id": "future",  "name": "미래/운세",   "icon": "🔮", "questions": []},
-        "mind":    {"id": "mind",    "name": "심리/속마음", "icon": "🧠", "questions": []},
-        "daily":   {"id": "daily",   "name": "일상/고민",   "icon": "🌟", "questions": []},
+        "love":    {"id": "love",    "name": "연애와 관계", "description": "연애, 이별, 재회의 흐름", "icon": "", "questions": []},
+        "meeting": {"id": "meeting", "name": "만남과 인연", "description": "새로운 사람과 이어질 가능성", "icon": "", "questions": []},
+        "money":   {"id": "money",   "name": "돈과 일", "description": "재물, 직업, 현실적인 고민", "icon": "", "questions": []},
+        "future":  {"id": "future",  "name": "미래와 운세", "description": "앞으로의 흐름과 시기", "icon": "", "questions": []},
+        "mind":    {"id": "mind",    "name": "속마음", "description": "상대와 나의 심리", "icon": "", "questions": []},
+        "daily":   {"id": "daily",   "name": "일상 고민", "description": "생활 속 작고 큰 선택", "icon": "", "questions": []},
     }
 
     love_kw    = ["연인", "애인", "사랑", "애정", "이별", "헤어", "재회", "고백", "썸", "짝사랑", "남자친구", "여자친구", "사귀"]
@@ -70,27 +203,98 @@ def group_categories(all_cats):
         placed = False
         for kw in love_kw:
             if kw in cat:
-                groups["love"]["questions"].append(cat); placed = True; break
+                groups["love"]["questions"].append({"id": cat, "text": clean_display_text(cat)}); placed = True; break
         if placed: continue
         for kw in meeting_kw:
             if kw in cat:
-                groups["meeting"]["questions"].append(cat); placed = True; break
+                groups["meeting"]["questions"].append({"id": cat, "text": clean_display_text(cat)}); placed = True; break
         if placed: continue
         for kw in money_kw:
             if kw in cat:
-                groups["money"]["questions"].append(cat); placed = True; break
+                groups["money"]["questions"].append({"id": cat, "text": clean_display_text(cat)}); placed = True; break
         if placed: continue
         for kw in mind_kw:
             if kw in cat:
-                groups["mind"]["questions"].append(cat); placed = True; break
+                groups["mind"]["questions"].append({"id": cat, "text": clean_display_text(cat)}); placed = True; break
         if placed: continue
         for kw in future_kw:
             if kw in cat:
-                groups["future"]["questions"].append(cat); placed = True; break
+                groups["future"]["questions"].append({"id": cat, "text": clean_display_text(cat)}); placed = True; break
         if not placed:
-            groups["daily"]["questions"].append(cat)
+            groups["daily"]["questions"].append({"id": cat, "text": clean_display_text(cat)})
 
     return list(groups.values())
+
+
+# ── 기존 해석 데이터 활용 함수 ──────────────────────────────
+
+def load_description_patterns(category: str) -> dict:
+    """
+    기존 description 파일에서 같은 질문(category)에 대한 
+    해석들을 로드해서 공통 패턴/특이점 추출
+    """
+    try:
+        # r3n10이 가장 다양하므로 r3n10 우선 시도
+        desc_path = Path("description_r3n10.json")
+        if not desc_path.exists():
+            desc_path = Path("description_r3n5.json")
+        
+        if not desc_path.exists():
+            return {}
+        
+        with open(desc_path, 'r', encoding='utf-8') as f:
+            data = json.load(f)
+        
+        # 해당 질문의 해석들 추출
+        if "categories" in data and category in data["categories"]:
+            existing_interpretation = data["categories"][category]
+            
+            # 특이점 추출: 자주 나오는 단어/표현 찾기
+            patterns = extract_key_patterns(existing_interpretation)
+            
+            return {
+                "existing": existing_interpretation,
+                "patterns": patterns
+            }
+        
+        return {}
+    except Exception as e:
+        print(f"[패턴 로드 오류] {e}")
+        return {}
+
+
+def extract_key_patterns(text: str) -> list:
+    """
+    해석 텍스트에서 반복되는 특이점/주제 추출
+    """
+    # 주요 키워드 표현식 패턴
+    patterns = []
+    
+    # "~카드" 패턴 찾기
+    card_patterns = re.findall(r'(\w+\s+카드)', text)
+    if card_patterns:
+        patterns.append(f"카드 언급: {', '.join(set(card_patterns[:3]))}")
+    
+    # "~의미" 패턴
+    meaning_patterns = re.findall(r'([\w\s]+)(?:를?을?|이?가?)\s+(?:의미|나타내)', text)
+    if meaning_patterns:
+        top_meanings = Counter(meaning_patterns).most_common(2)
+        for meaning, _ in top_meanings:
+            patterns.append(f"중요 의미: {meaning.strip()}")
+    
+    # "지금", "앞으로", "시간" 같은 타임 프레임 단어
+    time_keywords = ['지금', '앞으로', '앞서', '일단', '기다', '곧', '점차', '마지막']
+    found_times = [kw for kw in time_keywords if kw in text]
+    if found_times:
+        patterns.append(f"시간관점: {', '.join(found_times[:2])}")
+    
+    # "행동", "조언", "주의" 같은 실행 지시
+    action_keywords = ['행동', '조언', '주의', '조심', '버려', '유지', '자제', '개선']
+    found_actions = [kw for kw in action_keywords if kw in text]
+    if found_actions:
+        patterns.append(f"액션: {', '.join(found_actions[:2])}")
+    
+    return patterns[:4]  # 상위 4개 특이점만
 
 
 def call_openai(prompt: str) -> str:
@@ -104,10 +308,10 @@ def call_openai(prompt: str) -> str:
     body = json.dumps({
         "model": "gpt-4.1-mini",  # 가볍고 빠름
         "messages": [
-            {"role": "system", "content": "당신은 따뜻한 타로 상담가입니다."},
+            {"role": "system", "content": "당신은 공감 능력이 뛰어난 타로 상담가입니다. 개성 있고 신선한 해석을 제공하세요."},
             {"role": "user", "content": prompt}
         ],
-        "temperature": 0.8
+        "temperature": 1.0  # 창의성 극대화
     }).encode("utf-8")
 
     req = urllib.request.Request(url, data=body, headers=headers, method="POST")
@@ -178,7 +382,7 @@ class TarotAPIHandler(BaseHTTPRequestHandler):
     def serve_questions(self, group_id):
         groups = group_categories(load_all_categories())
         target = next((g for g in groups if g["id"] == group_id), None)
-        self.send_json([{"id": q, "text": q} for q in target["questions"]] if target else [])
+        self.send_json(target["questions"] if target else [])
 
     def serve_reading(self, category, card, direction, user_name, partner):
         if not card:
@@ -251,78 +455,98 @@ class TarotAPIHandler(BaseHTTPRequestHandler):
         }
         """
         category  = body.get("category", "")
+        display_category = clean_display_text(category)
         cards     = body.get("cards", [])
         readings  = body.get("readings", [])
         positions = ["과거", "현재", "미래"]
+
+        # 기존 패턴 로드
+        pattern_data = load_description_patterns(category)
+        pattern_hints = "\n".join(pattern_data.get("patterns", []))
 
         card_descriptions = []
         for i, card in enumerate(cards):
             reading      = readings[i] if i < len(readings) else None
             direction_ko = "정방향" if card.get("direction") == "normal" else "역방향"
             label        = positions[i] if i < len(positions) else f"{i+1}번째"
-
+            
+            # 각 카드별 더 풍부한 설명 구성
+            card_text = f"[{label}] {card['card']} {direction_ko}"
+            
             if reading and reading.get("source") == "csv_content" and reading.get("content"):
-                card_descriptions.append(
-                    f"[{label}] {card['card']} {direction_ko}\n풀이 참고: {reading['content']}"
-                )
-            else:
-                card_descriptions.append(f"[{label}] {card['card']} {direction_ko}")
+                # CSV의 풀이를 상세하게 포함
+                card_text += f"\n  풀이 참고: {reading['content'][:150]}..."
+            
+            card_descriptions.append(card_text)
 
         prompt = f"""
-당신은 공감 능력이 뛰어난 타로 상담가입니다.
+당신은 정교한 감정 공감 능력을 가진 타로 상담가입니다.
+이미 수백 번 검증된 우리 데이터에서 발견된 패턴과 특이점을 알고 있습니다.
 
-질문: {category}
+[질문]
+{display_category}
 
-뽑힌 카드:
+[3카드 구조 - 과거 → 현재 → 미래]
 {chr(10).join(card_descriptions)}
 
-아래 기준을 반드시 지켜서 해석하세요:
+[우리 데이터에서 발견된 특이점]
+{pattern_hints if pattern_hints else '(데이터 기반 특이점)'}
 
-1. 전체 흐름 중심
-- 과거 → 현재 → 미래의 흐름을 하나의 이야기처럼 자연스럽게 이어주세요
-- 각 카드를 따로 설명하지 말고 서로 연결해서 해석하세요
+[핵심 해석 전략]
 
-2. 감정 공감
-- 질문자의 상황에 공감하는 문장으로 시작하세요
-- "요즘 마음이 많이 복잡하셨던 것 같아요" 같은 자연스러운 공감 표현 포함
+1. 카드 간 '대비와 반향' 찾기
+   - 첫 카드와 마지막 카드를 비교: 같은 방향? 반대? → 이는 흐름의 방향성을 암시
+   - 중간 카드(현재)가 중개자 역할을 하는가? → 변화의 징조 포착
+   - 예: 악마(과거) → 별(현재) → 태양(미래) 라면 "속박에서 해방되는 여정"
 
-3. 타로다운 표현
-- “~의 흐름이 보입니다”
-- “~한 에너지가 느껴집니다”
-- “~의 가능성이 열려 있습니다”
-이런 식의 은유적이고 부드러운 표현 사용
+2. 카드의 '숨겨진 대화' 들려주기
+   - 단순 카드 설명이 아님. 카드들이 무엇을 말하려 하는지 느껴짐
+   - "당신이 과거에 심었던 씨앗이 지금 싹을 틔우고 있어요"
+   - "현재의 이 정체 상태는 다음 단계로 가기 전 필요한 숨 고르기예요"
 
-4. 조언 포함
-- 단순 결과 말고, 앞으로 어떻게 하면 좋을지 현실적인 조언을 포함하세요
+3. 질문자의 '지금 이 순간'을 중심으로
+   - 질문의 감정 톤 파악: 불안한가? 기대하는가? 혼란한가?
+   - 그 감정에서 보일 만한 구체적인 다음 단계 제시
+   - 타이밍 힌트: "다음 2주간", "이번 분기", "올 여름" 같은 시간 단위 제시
 
-5. 말투
-- 친근하고 부드러운 해요체
-- 너무 단정짓지 말고 여지를 남기는 표현 사용
+4. 매우 구체적인 '액션 조언'
+   - "조금 더 기다려보세요" 말고
+   - "다음 2주간은 새로운 시도보다 관계를 돌보세요. 그 후에 움직여도 늦지 않습니다" 이렇게
 
-6. 길이
-- 400~600자
-- 하나의 자연스러운 단락으로 작성 (줄바꿈 없이)
+5. 표현 스타일
+   - "~한 흐름이", "~에너지가", "~가능성이" 같은 타로 표현
+   - 심리학적 깊이 추가: "무의식적 두려움", "성장의 통과의례", "자기 확신의 시간"
+   - 친근한 어조로 (해요/습니다체 자연스럽게 섞음)
+   - 불확실성 표현 활용 ("~일 수 있어요", "~처럼 보입니다")
 
-7. 참고 데이터 활용
-- 풀이 참고가 있는 경우 그 의미를 자연스럽게 녹여서 사용
-- 없는 경우 카드의 일반적인 의미로 보완
+6. 절대 금지 사항
+   - "과거:", "현재:", "미래:" 이렇게 나누기 금지
+   - 3개 항목의 리스트 형식 금지
+   - "카드는 ~를 의미합니다" 같은 건조한 정의 금지
+   - 카드 설명을 그대로 복사-붙여넣기 금지
 
-절대 금지:
-- "과거:", "현재:" 같은 딱딱한 구분
-- 리스트 형식
-- 기계적인 설명
+7. 길이와 형식
+   - 350~550자, 하나의 자연스러운 단락으로
+   - 마치 친구와 대화하는 느낌
+   - 끝은 따뜻하거나 희망적인 톤으로 마무리
 
-자연스럽고 사람과 대화하는 느낌으로 작성하세요."""
+8. 데이터 활용 원칙
+   - 제공된 풀이 참고는 의미만 재해석해서 자연스럽게 녹임
+   - 우리 데이터에서 발견된 패턴을 참고해서 차별화된 각도로 해석
+   - 그 카드가 이 질문과 만날 때 특별히 의미하는 것이 뭘까?
+
+자연스럽게 흘러가는 하나의 이야기처럼 작성하세요.
+"""
 
         try:
             result = call_openai(prompt)
             self.send_json({"content": result})
         except urllib.error.HTTPError as e:
             err_body = e.read().decode("utf-8")
-            print(f"[Gemini HTTP 오류] {e.code}: {err_body}")
-            self.send_json({"error": f"Gemini {e.code}: {err_body}"}, status=500)
+            print(f"[OpenAI HTTP 오류] {e.code}: {err_body}")
+            self.send_json({"error": f"OpenAI {e.code}: {err_body}"}, status=500)
         except Exception as e:
-            print(f"[Gemini 오류] {e}")
+            print(f"[OpenAI 오류] {e}")
             self.send_json({"error": str(e)}, status=500)
 
     # ── 유틸 ────────────────────────────────────────────────
@@ -333,7 +557,7 @@ class TarotAPIHandler(BaseHTTPRequestHandler):
 
     def _replace_vars(self, text, user_name="당신", partner="그 사람"):
         return (
-            text
+            replace_date_vars(text)
             .replace("$user_name", user_name)
             .replace("$partner_name", partner)
             .replace("$partner_gender", partner)
@@ -355,19 +579,14 @@ class TarotAPIHandler(BaseHTTPRequestHandler):
         self.send_header("Access-Control-Allow-Methods", "GET, POST, OPTIONS")
         self.send_header("Access-Control-Allow-Headers", "Content-Type")
 
-    def log_message(self, fmt, *args):
-        print(f"[API] {self.address_string()} {fmt % args}")
 
-def run(port=None):
-    port = int(os.environ.get("PORT", port or 8001))
+def run_server():
+    port = 8001
+    server = HTTPServer(("0.0.0.0", port), TarotAPIHandler)
+    print(f"🌙 타로 API 실행 중... http://localhost:{port}")
+    print(f"엔드포인트: /data/categories.json, /data/reading, /gemini/reading")
+    server.serve_forever()
 
-    if not Path(DB_PATH).exists():
-        print(f"❌ {DB_PATH} 없음 — 먼저 tarot_pipeline.py 실행하세요")
-        return
-
-    httpd = HTTPServer(("0.0.0.0", port), TarotAPIHandler)
-    print(f"🔮 타로 API 서버: http://0.0.0.0:{port}")
-    httpd.serve_forever()
 
 if __name__ == "__main__":
-    run()
+    run_server()
