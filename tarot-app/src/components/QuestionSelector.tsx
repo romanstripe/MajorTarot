@@ -1,6 +1,8 @@
 import React, { useState, useEffect } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
+import { motion } from 'framer-motion';
 import { useTarotDataDB } from '../hooks/useTarotDataDB';
+import { Question } from '../types/tarot';
+import { formatDisplayText } from '../utils/displayText';
 
 interface QuestionSelectorProps {
   selectedCategory: string;
@@ -14,7 +16,7 @@ export const QuestionSelector: React.FC<QuestionSelectorProps> = ({
   onBack,
 }) => {
   const [searchQuery, setSearchQuery] = useState('');
-  const [filteredQuestions, setFilteredQuestions] = useState<string[]>([]);
+  const [filteredQuestions, setFilteredQuestions] = useState<Question[]>([]);
   const [loadingQ, setLoadingQ] = useState(true);
   const { getQuestionsByCategory } = useTarotDataDB();
 
@@ -29,9 +31,9 @@ export const QuestionSelector: React.FC<QuestionSelectorProps> = ({
     const load = async () => {
       const questions = await getQuestionsByCategory(groupId);
       console.log('❓ 받은 질문 수:', questions.length, questions);
-      const texts = questions.map((q: any) => q.text || q);
-      const filtered = texts.filter((q: string) =>
-        q.toLowerCase().includes(searchQuery.toLowerCase())
+      const normalizedQuery = searchQuery.trim().toLowerCase();
+      const filtered = questions.filter((question) =>
+        formatDisplayText(question.text).toLowerCase().includes(normalizedQuery)
       );
       setFilteredQuestions(filtered);
       setLoadingQ(false);
@@ -50,11 +52,12 @@ export const QuestionSelector: React.FC<QuestionSelectorProps> = ({
       <div className="text-center space-y-4">
         <button
           onClick={onBack}
-          className="flex items-center gap-2 text-purple-400 hover:text-purple-300 transition-colors"
+          className="flex items-center gap-2 text-purple-200 hover:text-white transition-colors"
         >
-          ← 카테고리로 돌아가기
+          <span>{"<"}</span>
+          <span>카테고리로 돌아가기</span>
         </button>
-        <h2 className="text-3xl font-bold text-purple-300">질문을 선택하세요</h2>
+        <h2 className="text-3xl font-bold text-purple-100">질문을 선택하세요</h2>
       </div>
 
       <div className="max-w-2xl mx-auto">
@@ -63,13 +66,12 @@ export const QuestionSelector: React.FC<QuestionSelectorProps> = ({
           value={searchQuery}
           onChange={(e) => setSearchQuery(e.target.value)}
           placeholder="질문 검색..."
-          className="w-full px-6 py-3 text-lg bg-purple-900/30 border-2 border-purple-500/50
-                     rounded-xl text-white placeholder-purple-300/70 focus:outline-none
-                     focus:border-purple-400 transition-all"
+          className="w-full px-6 py-3 text-lg glass-input rounded-xl focus:outline-none
+                     focus:border-white/45 focus:bg-white/15"
         />
       </div>
 
-      <div className="space-y-4 max-h-96 overflow-y-auto">
+      <div className="space-y-4">
         {loadingQ ? (
           <div className="text-center py-8">
             <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-purple-400 mx-auto mb-3" />
@@ -82,20 +84,21 @@ export const QuestionSelector: React.FC<QuestionSelectorProps> = ({
         ) : (
           filteredQuestions.map((question, index) => (
             <motion.button
-              key={question}
+              key={question.id}
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ delay: index * 0.03 }}
               whileHover={{ scale: 1.02, x: 5 }}
               whileTap={{ scale: 0.98 }}
-              onClick={() => onQuestionSelect(question)}
-              className="w-full text-left p-6 bg-purple-900/20 border-2 border-purple-600/30
-                         rounded-xl hover:bg-purple-900/40 hover:border-purple-500/50
+              onClick={() => onQuestionSelect(question.id)}
+              className="w-full text-left p-6 glass-card rounded-xl hover:bg-white/15 hover:border-white/35
                          transition-all group"
             >
               <div className="flex items-center justify-between">
-                <p className="text-purple-200 text-lg group-hover:text-purple-100">{question}</p>
-                <span className="text-purple-400 group-hover:text-purple-300 ml-4">→</span>
+                <p className="text-purple-100 text-lg group-hover:text-white">
+                  {formatDisplayText(question.text)}
+                </p>
+                <span className="ml-6 text-purple-200 group-hover:text-white">{">"}</span>
               </div>
             </motion.button>
           ))

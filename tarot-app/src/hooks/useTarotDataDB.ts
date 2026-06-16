@@ -13,16 +13,13 @@ export interface TarotReading {
   source: string;
 }
 
-const ICON_MAP: Record<string, string> = {
-  love: "💕",
-  meeting: "🌹",
-  money: "💰",
-  future: "🔮",
-  mind: "🧠",
-  daily: "🌟",
-};
-
 const COLOR_MAP: Record<string, string> = {
+  new_start: "from-pink-500 to-rose-600",
+  love_classic: "from-red-500 to-pink-600",
+  love_again: "from-violet-500 to-fuchsia-600",
+  money_success: "from-yellow-500 to-amber-600",
+  find_myself: "from-blue-500 to-cyan-600",
+  precious_being: "from-green-500 to-emerald-600",
   love: "from-pink-500 to-rose-600",
   meeting: "from-red-500 to-pink-600",
   money: "from-yellow-500 to-amber-600",
@@ -45,16 +42,17 @@ export const useTarotDataDB = () => {
         const data: {
           id: string;
           name: string;
+          description?: string;
           icon: string;
-          questions: string[];
+          questions: { id: string; text: string }[];
         }[] = await res.json();
 
         const formatted: Category[] = data.map((cat) => ({
           id: cat.id,
           title: cat.name,
-          subtitle: `${cat.questions.length}개 질문`,
+          subtitle: cat.description || `${cat.questions.length}개 질문`,
           keywords: [],
-          icon: ICON_MAP[cat.id] ?? "✨",
+          icon: "",
           color: COLOR_MAP[cat.id] ?? "from-purple-500 to-indigo-600",
         }));
 

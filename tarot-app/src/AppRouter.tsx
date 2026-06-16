@@ -8,12 +8,13 @@ import { NewCardSpread } from './components/NewCardSpread';
 import { ReadingResult } from './components/ReadingResult';
 import { useTarotDataDB } from './hooks/useTarotDataDB';
 import { TarotCard as TarotCardType } from './types/tarot';
+import { formatDisplayText } from './utils/displayText';
 
 function AppRouter() {
   const [selectedCategory, setSelectedCategory] = useState<string>('');
   const [selectedQuestion, setSelectedQuestion] = useState<string>('');
   const [selectedCards, setSelectedCards] = useState<TarotCardType[]>([]);
-  const { categories, loading } = useTarotDataDB();
+  const { loading } = useTarotDataDB();
   const { category } = useParams<{ category?: string }>();
   const navigate = useNavigate();
 
@@ -46,10 +47,10 @@ function AppRouter() {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-purple-950 via-purple-900 to-indigo-950 text-white flex items-center justify-center">
+      <div className="min-h-screen bg-gradient-to-br from-purple-950 via-fuchsia-950 to-slate-950 text-white flex items-center justify-center">
         <div className="text-center">
           <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-purple-400 mx-auto mb-4"></div>
-          <p className="text-purple-300">Loading tarot data...</p>
+          <p className="text-purple-200">타로 데이터를 불러오는 중...</p>
         </div>
       </div>
     );
@@ -58,8 +59,8 @@ function AppRouter() {
   
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-purple-950 via-purple-900 to-indigo-950 text-white">
-      <div className="container mx-auto px-4 py-8">
+    <div className="min-h-screen bg-gradient-to-br from-purple-950 via-fuchsia-950 to-slate-950 text-white">
+      <div className="container mx-auto px-4 py-8 md:py-10">
         <AnimatePresence mode="wait">
           <Routes>
               <Route path="/" element={
@@ -72,8 +73,8 @@ function AppRouter() {
                   className="space-y-8"
                 >
                   <div className="text-center space-y-4">
-                    <h1 className="text-4xl font-bold text-purple-300">Tarot Reading</h1>
-                    <p className="text-purple-400">Discover insights about your life's questions</p>
+                    <h1 className="text-4xl font-bold text-purple-100">MajorTarot</h1>
+                    <p className="text-purple-200">지금 궁금한 흐름을 카드로 살펴보세요</p>
                   </div>
                   <SearchInput onCategorySelect={(cat: any) => handleCategorySelect(cat.id)} />
                   <CategoryButtons onCategorySelect={(cat: any) => handleCategorySelect(cat.id)} />
@@ -91,10 +92,10 @@ function AppRouter() {
                 >
                   <div className="text-center space-y-4">
                     <h2 className="text-3xl font-semibold text-purple-300">
-                      Choose Your Cards
+                      카드를 선택하세요
                     </h2>
-                    <div className="text-purple-400 bg-purple-900/30 px-6 py-3 rounded-xl border border-purple-600/30 max-w-2xl mx-auto">
-                      {selectedQuestion || selectedCategory}
+                    <div className="text-purple-100 glass-panel px-6 py-3 rounded-xl max-w-2xl mx-auto">
+                      {formatDisplayText(selectedQuestion || selectedCategory)}
                     </div>
                   </div>
                   <NewCardSpread onCardsSelected={handleCardsSelected} />
@@ -126,7 +127,7 @@ function AppRouter() {
     exit="exit"
   >
     <QuestionSelector
-      selectedCategory={selectedCategory}  
+      selectedCategory={selectedCategory || category || ''}
       onQuestionSelect={handleQuestionSelect}
       onBack={() => navigate('/')}
     />
