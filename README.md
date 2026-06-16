@@ -1,11 +1,11 @@
 <div align="center">
 
-<img src="./tarot-app/public/logo.png" alt="MajorTarot-logo" width="180"/>
 
 > **Major Arcana + AI = MajorTarot**  
 > 카드의 흐름을 기반으로 직관적인 해석을 제공하는 AI 타로 상담 서비스
+> 
 
-[![Live Demo](https://img.shields.io/badge/🌐_Live_Demo-major-tarot.vercel.app-60A5FA?style=for-the-badge&logo=vercel)](https://major-tarot.vercel.app/)
+[![Live Demo](https://img.shields.io/badge/🔮_Live_Demo-major--tarot.vercel.app-8B5CF6?style=for-the-badge&logo=vercel)](https://major-tarot-tk3l.vercel.app/)
 
 </div>
 
@@ -13,7 +13,7 @@
 
 ## 🌟 프로젝트 소개
 
-MajorTarot은 사용자가 선택한 질문과 뽑은 카드 조합을 바탕으로, AI가 자연스럽고 통찰력 있는 타로 해석을 제공하는 웹 애플리케이션입니다.  
+MajorTarot은 사용자가 선택한 질문과 뽑은 카드 조합을 바탕으로, 130개의 질문에 대한 22개의 카드에 대해 연구한 자료를 바탕으로 자연스럽고 통찰력 있는 타로 해석을 제공하는 웹 애플리케이션입니다.  
 카드의 단순 의미를 나열하는 것이 아니라, **과거 → 현재 → 미래의 흐름을 하나의 이야기로 연결**하여 직관적인 상담 경험을 제공합니다.
 
 ---
