@@ -1,25 +1,125 @@
-import React, { useState, useEffect } from 'react';
+import React, { useCallback, useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { useTarotDataDB } from '../hooks/useTarotDataDB';
-import { Category } from '../types/tarot';
+import { Category, Question } from '../types/tarot';
+import { formatDisplayText } from '../utils/displayText';
 
 interface SearchInputProps {
-  onCategorySelect: (category: any) => void;
+  categories: Category[];
+  getQuestionsByCategory: (categoryId: string) => Promise<Question[]>;
+  onCategorySelect: (category: Category) => void;
+  onQuestionSelect: (question: string) => void;
 }
 
-export const SearchInput: React.FC<SearchInputProps> = ({ onCategorySelect }) => {
+type SearchResult =
+  | {
+      type: 'category';
+      category: Category;
+      score: number;
+    }
+  | {
+      type: 'question';
+      category: Category;
+      question: Question;
+      score: number;
+    };
+
+export const SearchInput: React.FC<SearchInputProps> = ({
+  categories,
+  getQuestionsByCategory,
+  onCategorySelect,
+  onQuestionSelect,
+}) => {
   const [query, setQuery] = useState('');
-  const [searchResults, setSearchResults] = useState<Category[]>([]);
+  const [searchResults, setSearchResults] = useState<SearchResult[]>([]);
+  const [questionIndex, setQuestionIndex] = useState<Array<{ category: Category; question: Question }>>([]);
   const [isOpen, setIsOpen] = useState(false);
-  const { categories } = useTarotDataDB();
+
+  const normalize = (value: string) => value.trim().toLowerCase().replace(/\s+/g, '');
+
+  const getCategoryScore = useCallback((category: Category, rawQuery: string) => {
+    const query = normalize(rawQuery);
+    if (!query) return 0;
+
+    const id = normalize(category.id);
+    const title = normalize(category.title);
+    const subtitle = normalize(category.subtitle);
+    const searchableText = `${id} ${title} ${subtitle}`;
+
+    if (title === query || id === query) return 100;
+    if (title.startsWith(query)) return 90;
+    if (title.includes(query)) return 80;
+    if (subtitle.includes(query)) return 60;
+    if (id.includes(query)) return 50;
+    if (searchableText.includes(query)) return 30;
+
+    return 0;
+  }, []);
+
+  const getQuestionScore = useCallback((question: Question, rawQuery: string) => {
+    const query = normalize(rawQuery);
+    if (!query) return 0;
+
+    const displayText = normalize(formatDisplayText(question.text));
+    const rawText = normalize(question.id);
+
+    if (displayText === query || rawText === query) return 95;
+    if (displayText.startsWith(query)) return 85;
+    if (displayText.includes(query)) return 75;
+    if (rawText.includes(query)) return 65;
+
+    return 0;
+  }, []);
 
   useEffect(() => {
-    const normalizedQuery = query.trim().toLowerCase();
-    
-    if (normalizedQuery) {
-      const results = categories.filter((category) => {
-        const searchableText = `${category.id} ${category.title} ${category.subtitle}`.toLowerCase();
-        return searchableText.includes(normalizedQuery);
+    if (categories.length === 0) {
+      setQuestionIndex([]);
+      return;
+    }
+
+    let cancelled = false;
+
+    const loadQuestions = async () => {
+      const groupedQuestions = await Promise.all(
+        categories.map(async (category) => {
+          const questions = await getQuestionsByCategory(category.id);
+          return questions.map((question) => ({ category, question }));
+        }),
+      );
+
+      if (!cancelled) {
+        setQuestionIndex(groupedQuestions.flat());
+      }
+    };
+
+    loadQuestions();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [categories, getQuestionsByCategory]);
+
+  useEffect(() => {
+    if (query.trim()) {
+      const categoryResults: SearchResult[] = categories
+        .map((category) => ({
+          type: 'category' as const,
+          category,
+          score: getCategoryScore(category, query),
+        }))
+        .filter((result) => result.score > 0);
+
+      const questionResults: SearchResult[] = questionIndex
+        .map(({ category, question }) => ({
+          type: 'question' as const,
+          category,
+          question,
+          score: getQuestionScore(question, query),
+        }))
+        .filter((result) => result.score > 0);
+
+      const results = [...categoryResults, ...questionResults].sort((a, b) => {
+        if (b.score !== a.score) return b.score - a.score;
+        return a.type === 'category' ? -1 : 1;
       });
 
       setSearchResults(results.slice(0, 5));
@@ -28,16 +128,35 @@ export const SearchInput: React.FC<SearchInputProps> = ({ onCategorySelect }) =>
       setSearchResults([]);
       setIsOpen(false);
     }
-  }, [query, categories]);
+  }, [query, categories, questionIndex, getCategoryScore, getQuestionScore]);
 
-  const handleCategoryClick = (category: Category) => {
+  const goToCategory = (category: Category) => {
     onCategorySelect(category);
+    setQuery('');
+    setIsOpen(false);
+  };
+
+  const goToQuestion = (question: Question) => {
+    onQuestionSelect(question.id);
     setQuery('');
     setIsOpen(false);
   };
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     setQuery(e.target.value);
+  };
+
+  const handleInputKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.key !== 'Enter') return;
+    if (searchResults.length === 0) return;
+
+    e.preventDefault();
+    const firstResult = searchResults[0];
+    if (firstResult.type === 'category') {
+      goToCategory(firstResult.category);
+    } else {
+      goToQuestion(firstResult.question);
+    }
   };
 
   const handleInputFocus = () => {
@@ -58,6 +177,7 @@ export const SearchInput: React.FC<SearchInputProps> = ({ onCategorySelect }) =>
           type="text"
           value={query}
           onChange={handleInputChange}
+          onKeyDown={handleInputKeyDown}
           onFocus={handleInputFocus}
           onBlur={handleInputBlur}
           placeholder="어떤 흐름이 궁금한가요?"
@@ -76,23 +196,52 @@ export const SearchInput: React.FC<SearchInputProps> = ({ onCategorySelect }) =>
           >
             {searchResults.map((result, index) => (
               <motion.button
-                key={result.id}
+                key={
+                  result.type === 'category'
+                    ? `category-${result.category.id}`
+                    : `question-${result.question.id}`
+                }
                 initial={{ opacity: 0, x: -20 }}
                 animate={{ opacity: 1, x: 0 }}
                 transition={{ delay: index * 0.1 }}
-                onClick={() => handleCategoryClick(result)}
+                onClick={() =>
+                  result.type === 'category'
+                    ? goToCategory(result.category)
+                    : goToQuestion(result.question)
+                }
                 className="w-full text-left px-6 py-4 text-white hover:bg-white/10
                          transition-colors duration-200 border-b border-white/10 last:border-b-0"
               >
                 <div className="flex items-center justify-between">
                   <span>
-                    <span className="block text-lg">{result.title}</span>
-                    <span className="block text-xs text-purple-200/80">{result.subtitle}</span>
+                    <span className="block text-xs text-purple-200/80">
+                      {result.type === 'category' ? '카테고리' : result.category.title}
+                    </span>
+                    <span className="block text-lg">
+                      {result.type === 'category'
+                        ? result.category.title
+                        : formatDisplayText(result.question.text)}
+                    </span>
+                    {result.type === 'category' && (
+                      <span className="block text-xs text-purple-200/80">
+                        {result.category.subtitle}
+                      </span>
+                    )}
                   </span>
                   <span className="text-purple-200">{">"}</span>
                 </div>
               </motion.button>
             ))}
+          </motion.div>
+        )}
+        {isOpen && query.trim() && searchResults.length === 0 && (
+          <motion.div
+            initial={{ opacity: 0, y: -10 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -10 }}
+            className="absolute top-full left-0 right-0 mt-2 glass-panel rounded-2xl px-6 py-4 text-sm text-purple-200 z-50"
+          >
+            일치하는 카테고리나 질문을 찾지 못했습니다.
           </motion.div>
         )}
       </AnimatePresence>

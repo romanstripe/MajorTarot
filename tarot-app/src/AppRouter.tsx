@@ -14,7 +14,7 @@ function AppRouter() {
   const [selectedCategory, setSelectedCategory] = useState<string>('');
   const [selectedQuestion, setSelectedQuestion] = useState<string>('');
   const [selectedCards, setSelectedCards] = useState<TarotCardType[]>([]);
-  const { loading } = useTarotDataDB();
+  const { categories, getQuestionsByCategory, loading } = useTarotDataDB();
   const { category } = useParams<{ category?: string }>();
   const navigate = useNavigate();
 
@@ -76,7 +76,12 @@ function AppRouter() {
                     <h1 className="text-4xl font-bold text-purple-100">MajorTarot</h1>
                     <p className="text-purple-200">지금 궁금한 흐름을 카드로 살펴보세요</p>
                   </div>
-                  <SearchInput onCategorySelect={(cat: any) => handleCategorySelect(cat.id)} />
+                  <SearchInput
+                    categories={categories}
+                    getQuestionsByCategory={getQuestionsByCategory}
+                    onCategorySelect={(cat: any) => handleCategorySelect(cat.id)}
+                    onQuestionSelect={handleQuestionSelect}
+                  />
                   <CategoryButtons onCategorySelect={(cat: any) => handleCategorySelect(cat.id)} />
                 </motion.div>
               } />
