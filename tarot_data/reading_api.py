@@ -10,7 +10,7 @@
   GET  /data/questions?group={love|money|daily|future|meeting|mind}
   GET  /data/reading?category={질문}&card={카드명}&direction={정방향|역방향}
   GET  /data/card_desc?card={카드명}&direction={정방향|역방향}
-  POST /gemini/reading  (body: JSON)
+  POST /ai/reading  (body: JSON)
 """
 import json
 import os
@@ -366,8 +366,8 @@ class TarotAPIHandler(BaseHTTPRequestHandler):
             length = int(self.headers.get("Content-Length", 0))
             body   = json.loads(self.rfile.read(length).decode("utf-8")) if length else {}
 
-            if path == "/gemini/reading":
-                self.serve_gemini_reading(body)
+            if path == "/ai/reading":
+                self.serve_ai_reading(body)
             else:
                 self.send_error(404, "Not Found")
         except Exception as e:
@@ -446,7 +446,7 @@ class TarotAPIHandler(BaseHTTPRequestHandler):
 
     # ── POST 엔드포인트 ──────────────────────────────────────
 
-    def serve_gemini_reading(self, body):
+    def serve_ai_reading(self, body):
         """
         body: {
           category: str,
@@ -584,7 +584,7 @@ def run_server():
     port = 8001
     server = HTTPServer(("0.0.0.0", port), TarotAPIHandler)
     print(f"🌙 타로 API 실행 중... http://localhost:{port}")
-    print(f"엔드포인트: /data/categories.json, /data/reading, /gemini/reading")
+    print(f"엔드포인트: /data/categories.json, /data/reading, /ai/reading")
     server.serve_forever()
 
 

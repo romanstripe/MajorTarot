@@ -48,7 +48,7 @@ export const ReadingResult: React.FC<ReadingResultProps> = ({
           ),
         );
 
-        const res = await fetch(`${API_BASE_URL}/gemini/reading`, {
+        const res = await fetch(`${API_BASE_URL}/ai/reading`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
